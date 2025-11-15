@@ -1,0 +1,95 @@
+---
+title: "Data Cleaning"
+author: "William Irvin"
+date: "2025-11-12"
+output: html_document
+---
+#Loads in all needed data sets
+```{r setup}
+library(tidyverse)
+resistance_data <- read.csv("raw_data(data).csv")
+palma_Ratios <- read.csv("palma_ratios(Ratios).csv")
+HIV_rates <- read.csv("HIV_Prevalence(Prevalence).csv")
+```
+
+#Eliminates all rows in resistance_data, BUT the ncesary columns for data analysis. Fully cleaned resistance_data is put into clean_resistance and viewed at the end.
+
+```{r Table 1}
+#Filters all studies so that they have more than or equal to 25 people.
+cleaned_resistance <- resistance_data %>%
+  select(Countries, Period, NRTI, NNRTI, Num.People)
+cleaned_resistance <- cleaned_resistance %>%
+  filter(Num.People >= 25)
+#Creates a function that seperates year periods (X-Y) into their components. Then, sets all periods longer than 3 years (half the study duration or more) to zeros for removal. All other periods are averaged and truncated. Single-year studies are left alone.
+process_year_range <- function(x) {
+  # Splits years into their components 
+  parts <- strsplit(x, "-")[[1]]
+  #Single-Year studies are left alone
+  if (length(parts) == 1) {
+    yr <- as.numeric(parts)
+    if (!is.na(yr)) return(yr) else return(NA)
+  }
+  #Averages the parts and removes them (turns them into zeros) if longer than 3-year study
+  if (length(parts) == 2) {
+    yrs <- as.numeric(parts)
+    if (any(is.na(yrs))) return(NA)
+    start <- yrs[1]
+    end   <- yrs[2]
+    gap   <- end - start
+    # Gap > 3 years → output 0
+    if (gap > 3) return(0)
+    # Otherwise midpoint (truncated)
+    mid <- floor((start + end) / 2)
+    return(mid)
+  }
+}
+cleaned_Years <- sapply(cleaned_resistance$Period, process_year_range)
+#Replaces the original cleaned_resistance column with cleaned_years, the product of the cleaned_resistance Period column post-function
+cleaned_resistance$Period <- cleaned_Years
+#Removes all studies who have participants from a multitude of Countries since it is impossible to isolate each participant to their respective country for anonmity reasons and sake of time.
+cleaned_resistance <- cleaned_resistance %>%
+  #Str_Squish removes all whitespace between the countries' names. (There appears to be some unknown character between words in the strings)
+  mutate(Countries = str_squish(Countries)) %>%
+  filter(!Countries %in% c("Belgium Luxembourg",
+                           "4 countries",
+                           "Botswana South Africa",
+                           "Guinea Senegal"))
+#Removes all studies that have a study period longer than 3 years(Period = 0) and puts the fully cleaned Table 1 data into clean_resistance
+cleaned_resistance <- cleaned_resistance %>%
+  filter(Period > 0)
+#Cleaning up names to align with Palma Ratios Table (for later)
+clean_resistance <- cleaned_resistance %>%
+  mutate(Countries = case_when(Countries == "Russian Federation" ~ "Russia",
+                              Countries == "US" ~ "United States",
+                              Countries == "Viet Nam" ~ "Vietnam",
+                              TRUE ~ Countries)
+  )
+View(clean_resistance)
+```
+
+#Creates Table 2 called other_Stats with Country, Summarized levels of resistance, Palma Ratio, and HIV Prevalance per Year (2010 - 2018)
+
+```{r}
+#Smmarizing studies by Year & their respective Country
+average_resistance <- clean_resistance %>%
+  group_by(Countries, Period) %>%
+  summarise(
+    mean_NRTI = mean(NRTI),
+    mean_NNRTI = mean(NNRTI)
+  )
+#Renaming Palma Ratio Columns to Match
+palma_Ratios <- palma_Ratios %>%
+      rename(Countries = Entity) %>%
+      rename(Period = Year)
+#Filtering Palma_Ratios for relevant data entries
+View(average_resistance)
+palma_Ratios <- palma_Ratios %>%
+  select(Countries, Period, Palma.ratio..Pretax...Estimated.)
+#Adds Corresponding Palma Ratio Data to averaged_resistance 
+ avg_table <- average_resistance %>%
+  left_join(palma_Ratios %>% select(Countries, Period, Palma.ratio..Pretax...Estimated.),
+            by = c("Countries", "Period"))
+#Removes NAs
+ avg_table <- avg_table %>%
+    filter(!is.na(Palma.ratio..Pretax...Estimated.))
+```
