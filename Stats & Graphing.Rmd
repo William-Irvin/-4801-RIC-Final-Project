@@ -1,0 +1,34 @@
+---
+title: "Stats Testing & Graphs"
+author: "William Irvin"
+output: html_document
+---
+
+Assumptions:
+Note I am only running linear regression and Chi-Sq tests, therefore I cannot really 'test' Chisq assumptions due to the nature of the data. However, to confirm qualitative things,
+Period is categorical (discrete numeric), while NNRTI and NRTI are percentages (proportions) and fit into this kind of test. 
+Data is assumed to be independent with no cross-counting (likelihood is very low especially considering large time frame and lack of retraction on the papers)
+
+```{r chi}
+chisq.test( table(clean_resistance$Period, clean_resistance$NNRTI) )
+chisq.test( table(clean_resistance$Period, clean_resistance$NRTI) )
+#Do it seperately for regions? Results might change? Focus on key regions---Asia and Africa
+```
+
+
+```{r LM}
+model_nrt <- lm(mean_NRTI ~ Palma.ratio..Pretax...Estimated., 
+               data = avg_table)
+plot(model_nrt)
+summary(model_nrt)
+
+
+model_nnrt <- lm(mean_NNRTI ~ Palma.ratio..Pretax...Estimated., 
+               data = avg_table)
+plot(model_nnrt)
+summary(model_nnrt)
+
+#For the assumptions tested, both plots closely follow the Q-Q residuals plot indicating normality of the residuals, residuals v. fitted is mostly straight indicating linearity (might talk to Dr. Richards about if the limits for interpretation here), and finally scale-location is a mostly flat line for both indicating homodesacitcity of residuals. 
+```
+
+Graphs will likely be trend-line linear graphs comparing Palma Ratio/Period to NNRTI and NRTI 
